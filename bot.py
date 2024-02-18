@@ -42,7 +42,7 @@ async def exp(message: types.Message):
     await message("Опыт", reply_markup=keyboard)
 
 @dp.message(Command("Activity"))
-async def place(message: types.Message):
+async def activity(message: types.Message):
     kb = [[types.KeyBoardButton(text="IT")],
           [types.KeyBoardButton(text="Медицина")],
           [types.KeyBoardButton(text="Преподавание")],
