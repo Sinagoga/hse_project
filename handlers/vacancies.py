@@ -1,5 +1,5 @@
 import polars as pl
-import html
+from html.parser import HTMLParser
 
 cur_code2rus = {"KZT": "₸", "BYR": "Br.", "EUR": "€", "KGS": "som", "RUR": "₽", "USD": "$", "UZS": "so'm"}
 
@@ -28,7 +28,14 @@ exp2rus = {
 
 t = 0
 
-df = pl.read_parquet("C:/Users/User/Downloads/hh_recsys_vacancies.pq")
+df = pl.read_parquet("C:\labs\hh_hack\hh_recsys_vacancies.pq")
+
+s = ""
+class MHP(HTMLParser):
+    def handle_data(self, data):
+        global s
+        s+=data+"\n\n" if data != " " else ""
+p = MHP()
 
 def VacancyInfo(i = t) -> str:
     parse_vac = df[i]
@@ -47,12 +54,23 @@ def VacancyInfo(i = t) -> str:
     parse_work_sch = sch2rus[parse_vac["workSchedule"].item()]
     exp = exp2rus[parse_vac["workExperience"].item()]
 
-    vacancy_info = f"<b>{name}</b>\n\n"
-    vacancy_info += f"<b>Описание:</b>\n{description}\n\n"
-    vacancy_info += f"<b>Условия:</b>\n{parse_work_sch}\n"
-    vacancy_info += f"<b>Опыт работы:</b> {exp}\n"
-    vacancy_info += f"<b>Трудоустройство:</b> {employment}\n"
-    vacancy_info += f"<b>Зарплата:</b> {res_compensation} {compensation_code}\n"
-    vacancy_info += f"<b>Ключевые навыки:</b> {skills}\n"
+    p.feed(description)
+    global s
+    vacancy_info = f'''
+<b>{name}</b>
+
+{s}
+<b>Компенсация:</b> {res_compensation} {compensation_code}
+
+<b>Ключевые навыки:</b> {skills}
+
+<b>Трудоустройтво:</b> {employment}
+
+<b>Расписание:</b> {parse_work_sch}
+
+<b>Опыт работы:</b> {exp}
+'''
+
+    s=""
 
     return vacancy_info

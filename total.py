@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from aiogram import Bot, Dispatcher, Router, types
+from aiogram import Bot, Dispatcher, Router
 from handlers import result
 
 TOKEN = "6988515939:AAGuc60wFwC6nccacfiC1c3MNZTxFCe7h_Y"

@@ -4,7 +4,6 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import Message
 from aiogram.utils.keyboard import ReplyKeyboardBuilder, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardBuilder
-import pandas as pd
 from aiogram.fsm.state import State, StatesGroup
 from IPython.display import display, HTML
 from aiogram.fsm.context import FSMContext
@@ -13,8 +12,6 @@ TOKEN = "6988515939:AAGuc60wFwC6nccacfiC1c3MNZTxFCe7h_Y"
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=TOKEN)
 dp = Dispatcher(bot=bot)
-
-df = pd.read_parquet("vacancies.pq")
 
 cur_code2rus = {"KZT": "₸", "BYR": "Br.", "EUR": "€", "KGS": "som", "RUR": "₽", "USD": "$", "UZS": "so'm"}
 
