@@ -4,8 +4,10 @@ from aiogram.types import Message, ReplyKeyboardRemove
 import random
 
 from handlers.questions import choice
-from handlers.vacancies import VacancyInfo, t
+from handlers.vacancies import VacancyInfo, labels
 router = Router()  # [1]
+
+counter = 0
 
 @router.message(Command("start")) 
 async def cmd_start(message: Message):
@@ -25,7 +27,12 @@ async def answer_yes(message: Message):
 
 @router.message(F.text.lower() == "следующая!")
 async def answer_no(message: Message):
-    vacancy = VacancyInfo([random.randint(1, 10)])
+    global counter
+    if counter < 10:
+        counter+=1
+        vacancy = VacancyInfo(random.randint(0, labels.shape[0]))
+    else: # model plug in
+        vacancy = VacancyInfo(0)
     await message.answer(
         text=vacancy,
         reply_markup=choice()

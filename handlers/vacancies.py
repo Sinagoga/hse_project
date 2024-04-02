@@ -29,6 +29,11 @@ exp2rus = {
 t = 0
 
 df = pl.read_parquet("C:\labs\hh_hack\hh_recsys_vacancies.pq")
+labels = pl.read_parquet("C:\labs\hh_hack\hh_vac2idx_data.pq")
+vac2idx = {labels["vacancy_id"][i]: int(labels["idx"][i]) for i in range(labels.shape[0])}
+
+df = df.filter(pl.col("vacancy_id").is_in(labels["vacancy_id"]))
+df = df.with_columns(df["vacancy_id"].replace(vac2idx).cast(int))
 
 s = ""
 class MHP(HTMLParser):
@@ -38,7 +43,7 @@ class MHP(HTMLParser):
 p = MHP()
 
 def VacancyInfo(i = t) -> str:
-    parse_vac = df[i]
+    parse_vac = df.filter(pl.col("vacancy_id") == i)
     name = parse_vac["name"].item()
     description = parse_vac["description"].item()
     compensation_from = parse_vac["compensation.from"].item() if not (
