@@ -2,7 +2,7 @@ from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, ReplyKeyboardRemove
 import random
-
+import emoji
 from handlers.questions import choice
 from handlers.vacancies import VacancyInfo, labels
 router = Router()  # [1]
@@ -25,7 +25,7 @@ async def answer_yes(message: Message):
         reply_markup=ReplyKeyboardRemove()
     )
 
-@router.message(F.text.lower() == "следующая!")
+@router.message(F.emoji(emoji.emojize(":thumbs_down:")))
 async def answer_no(message: Message):
     global counter
     if counter < 10:
@@ -37,3 +37,7 @@ async def answer_no(message: Message):
         text=vacancy,
         reply_markup=choice()
     )
+
+@router.message(F.emoji(emoji.emojize(":thumbs_up:")))
+async def answer_yes(message: Message):
+    #add to Favourites?
