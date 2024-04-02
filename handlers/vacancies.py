@@ -31,6 +31,7 @@ t = 0
 df = pl.read_parquet("C:\labs\hh_hack\hh_recsys_vacancies.pq")
 labels = pl.read_parquet("C:\labs\hh_hack\hh_vac2idx_data.pq")
 vac2idx = {labels["vacancy_id"][i]: int(labels["idx"][i]) for i in range(labels.shape[0])}
+vac_rate = pl.read_parquet("C:\labs\hh_hack\vac_rate.pq").with_columns(pl.col("vacancy_id").cast(int))
 
 df = df.filter(pl.col("vacancy_id").is_in(labels["vacancy_id"]))
 df = df.with_columns(df["vacancy_id"].replace(vac2idx).cast(int))
