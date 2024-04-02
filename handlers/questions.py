@@ -4,8 +4,12 @@ from aiogram.types.keyboard_button import KeyboardButton
 import emoji
 def choice() -> ReplyKeyboardMarkup:
     kb = ReplyKeyboardBuilder()
-    kb.add(KeyboardButton(text="Остаться на этой вакансии"))
-    kb.add(KeyboardButton(text=emoji.emojize(":thumbs_up:")))
-    kb.add(KeyboardButton(text=emoji.emojize(":thumbs_down:")))
-    kb.adjust(3)
+    builder.row(
+        types.KeyboardButton(text=emojize(":thumbs_up:")),
+        types.KeyboardButton(text=emojize(":thumbs_down:"))
+    )
+    builder.row(
+        types.KeyBoardButton(text="Остаться на этой вакансии")
+    )
     return kb.as_markup(resize_keyboard=True)
+    
