@@ -3,6 +3,7 @@ from aiogram.filters import Command
 from aiogram.types import Message, ReplyKeyboardRemove
 import random
 import polars as pl
+import emoji
 
 from handlers.questions import choice
 from handlers.vacancies import VacancyInfo, labels, vac_rate
@@ -21,13 +22,13 @@ async def cmd_start(message: Message):
     )
 
 @router.message(F.text.lower() == "остаться на этой вакансии")
-async def answer_yes(message: Message):
+async def answer_exit(message: Message):
     await message.answer(
         text="Надеюсь, я смог вам помочь в выборе вакансии",
         reply_markup=ReplyKeyboardRemove()
     )
 
-@router.message(F.text.lower() == "следующая!")
+@router.message(F.emoji(emoji.emojize(":thumbs_down:")))
 async def answer_no(message: Message):
     global counter
     if counter < 10:
@@ -35,6 +36,21 @@ async def answer_no(message: Message):
         ind = random.randint(0, labels.shape[0])
         vacancy = VacancyInfo(ind)
         user[ind] = 1*vac_rate.filter(pl.col("vacancy_id")==ind)["rate"].item()
+    else: # model plug in
+        vacancy = VacancyInfo(0)
+    await message.answer(
+        text=vacancy,
+        reply_markup=choice()
+    )
+
+@router.message(F.emoji(emoji.emojize(":thumbs_up:")))
+async def answer_yes(message: Message):
+    global counter
+    if counter < 10:
+        counter+=1
+        ind = random.randint(0, labels.shape[0])
+        vacancy = VacancyInfo(ind)
+        user[ind] = 3*vac_rate.filter(pl.col("vacancy_id")==ind)["rate"].item()
     else: # model plug in
         vacancy = VacancyInfo(0)
     await message.answer(
