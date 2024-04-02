@@ -28,7 +28,7 @@ async def answer_exit(message: Message):
         reply_markup=ReplyKeyboardRemove()
     )
 
-@router.message(F.emoji == (emoji.emojize(":thumbs_down:")))
+@router.message(F.text == (emoji.emojize(":thumbs_down:")))
 async def answer_no(message: Message):
     global counter
     if counter < 10:
@@ -43,7 +43,7 @@ async def answer_no(message: Message):
         reply_markup=choice()
     )
 
-@router.message(F.emoji == (emoji.emojize(":thumbs_up:")))
+@router.message(F.text == (emoji.emojize(":thumbs_up:")))
 async def answer_yes(message: Message):
     global counter
     if counter < 10:
