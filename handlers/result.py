@@ -27,6 +27,7 @@ async def answer_exit(message: Message):
         text="Надеюсь, я смог вам помочь в выборе вакансии",
         reply_markup=ReplyKeyboardRemove()
     )
+    await cmd_start(message)
 
 @router.message(F.text == (emoji.emojize(":thumbs_down:")))
 async def answer_no(message: Message):
