@@ -2,15 +2,19 @@ import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
-# from dotenv import load_dotenv
+from dotenv import load_dotenv
+
+from PIL import Image
+from io import BytesIO
+
 import bot_utils as model
-import os
 from pathlib import Path
 
+import os
 
-# load_dotenv()
-# TOKEN = os.getenv('TOKEN')
-TOKEN = "6988515939:AAGuc60wFwC6nccacfiC1c3MNZTxFCe7h_Y"
+
+load_dotenv()
+TOKEN = os.getenv('TOKEN')
 bot = Bot(TOKEN)
 dp = Dispatcher(bot=bot)
 
@@ -50,8 +54,9 @@ async def handle_image(message: types.Message):
     photo_id = photo.file_id
     file_info = await bot.get_file(photo_id)
     file_path = file_info.file_path
-    print(model.bot_pref(file_path, caption))
-    await message.answer("Картинка получена. Что вы хотите сделать дальше?", reply_markup=after_upload_markup)
+    image = await bot.download_file(file_path)
+    image = Image.open(BytesIO(image.read())).convert("RGB")
+    await message.answer(f"Картинка получена.\n\n Ответ:{model.bot_pref(image, caption)}\n\n Что вы хотите сделать дальше?", reply_markup=after_upload_markup)
 
 
 @dp.message(lambda message: message.text == "Загрузить еще картинку")
