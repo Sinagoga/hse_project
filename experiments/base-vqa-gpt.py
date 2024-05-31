@@ -1,3 +1,35 @@
+import torch
+import torch.nn as nn
+from torch.nn import functional as nnf
+from torch.amp import autocast
+from torch import einsum
+
+import open_clip
+
+from transformers import GPT2LMHeadModel, AutoTokenizer
+
+from typing import Optional
+
+from transformers.optimization import Adafactor
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+
+from statistics import mean
+# from vqadataset import VQAv2_Dataset
+from einops import rearrange
+import math
+import wandb
+import pickle
+from accelerate.utils import set_seed
+
+from accelerate import Accelerator
+
+from torch.utils.data import Dataset
+import sys
+from matplotlib import pyplot as plt
+import json
+from PIL import Image
+
 class Config:
     encoder: str = "ViT-B-16"
     # decoder: str = "ai-forever/FRED-T5-large"
@@ -7,44 +39,13 @@ class Config:
     frozen_gpt: int = 20
     frozen_clip: int = 60
     learning_rate: float  = 2e-4
-    save_path: str = "/home/jovyan/vqa_project/baselines/saved_models_FRED-T5-large/"
+    save_path: str = "/saved_models_FRED-T5-large/"
     prefix_length: int = 50
     only_prefix: int = False
     prefix: str = "prefix_small"
     device: str = "cuda:0"
     save_every: int = 1
     warmup_steps: int = 2000
-import torch
-import torch.nn as nn
-from torch.nn import functional as nnf
-from torch.amp import autocast
-from torch import einsum
-import torch.nn.functional as F
-
-import open_clip
-
-from transformers import GPT2LMHeadModel, AutoTokenizer
-from transformers import T5ForConditionalGeneration
-
-from typing import Optional
-
-from transformers.optimization import Adafactor
-import numpy as np
-from torch.utils.data import DataLoader
-from tqdm import tqdm
-
-from torchmetrics.text import BLEUScore
-from evaluate import load
-from statistics import mean
-import pandas as pd
-# from vqadataset import VQAv2_Dataset
-from einops import rearrange
-import math
-import wandb
-import pickle
-from accelerate.utils import set_seed
-
-from accelerate import Accelerator
 
 def exists(val):
     return val is not None
@@ -264,13 +265,8 @@ class ClipCaptionModel(nn.Module):
         )
         res = [decode_question(x, self.tokenizer) for x in out]
         return res
-
-bertscore = load("bertscore")
-meteor = load('meteor')
-rouge = load('rouge')
-bleu_scorers = [BLEUScore(n_gram=i) for i in [1, 2, 3]] + [bertscore, meteor, rouge]
-
-wandb.login(key="278590c2621521efe866317352d7f3e13fef885f")
+    
+wandb.login(key="")
 wandb.init(project="", sync_tensorboard=True, name="")
 
 def decode_question(question_token, tokenizer):
@@ -300,14 +296,6 @@ def training_loop(mixed_precision="fp16", seed:int=42, args=None, train_dataset=
     # instantiate the model (we build the model here so that the seed also controls new weight initaliziations)
     model = ClipCaptionModel(args, args.prefix_length)
 
-    # We normalize the batches of images to be a bit faster
-    # mean = torch.tensor(model.default_cfg["mean"])[None, :, None, None]
-    # std = torch.tensor(model.default_cfg["std"])[None, :, None, None]
-    
-    # To make this constant available on the active device, we set it to the accelerator device
-    # mean = mean.to(accelerator.device)
-    # std = std.to(accelerator.device)
-    
     # Intantiate the optimizer
     optimizer = Adafactor(params=model.parameters(), lr=config.learning_rate,
                           relative_step=False
@@ -380,19 +368,10 @@ def training_loop(mixed_precision="fp16", seed:int=42, args=None, train_dataset=
         print(f"---------- Evaluate epoch {epoch} ---------")
         model.eval()
         pbar = tqdm(eval_dataloader, total=len(eval_dataloader))
-        accurate = 0
-        num_elems = 0
-        
-        bl1 = []
-        bl2 = []
-        bl3 = []
-        brt = []
-        mtr = []
-        rg = []
+
         val_losses = []
         val_dist = []
         for step, (query_tokens, query_mask, answer_tokens, answer_mask, prefix, idx) in enumerate(pbar):
-            # We could avoid this line since we set the accelerator with `device_placement=True`.
             query_tokens, query_mask, prefix = query_tokens.to(accelerator.device), query_mask.to(accelerator.device), prefix.to(
             accelerator.device, dtype=torch.bfloat16)
             answer_tokens, answer_mask = answer_tokens.to(accelerator.device), answer_mask.to(accelerator.device)
@@ -409,17 +388,6 @@ def training_loop(mixed_precision="fp16", seed:int=42, args=None, train_dataset=
             real = [decode_question(answer_tokens[i], model.tokenizer) for i in range(len(answer_tokens))]
             pred = model.generate(torch.tensor([val_dataset[idx[j]][4].tolist() for j in range(len(idx))]).to(accelrator.device),
                               [decode_question(query_tokens[j], model.tokenizer) for j in range(len(idx))], val_dataset.max_seq_len)
-    
-            # predictions = outputs.argmax(dim=-1)
-            # accurate_preds = accelerator.gather(predictions) == accelerator.gather(batch["label"])
-            # num_elems += accurate_preds.shape[0]
-            # accurate += accurate_preds.long().sum()
-            bl1.append(bleu_scorers[0](pred, real))
-            bl2.append(bleu_scorers[1](pred, real))
-            bl3.append(bleu_scorers[2](pred, real))
-            brt.append(bleu_scorers[3].compute(predictions=pred, references=real, lang="ru")['f1'])
-            mtr.append(bleu_scorers[4].compute(predictions=pred, references=real)['meteor'])
-            rg.append(bleu_scorers[5].compute(predictions=pred, references=real)['rougeL'])
 
             if step % 400 == 0:
                 print("TEXT:", real[0])
@@ -440,18 +408,6 @@ def training_loop(mixed_precision="fp16", seed:int=42, args=None, train_dataset=
 
         wandb.log({"val_loss": mean(val_losses),
                "val_dist": mean(val_dist)})
-        # wandb.log({
-        #     "bleu_1": mean([tensor.item() for tensor in bl1]),
-        #     "bleu_2": mean([tensor.item() for tensor in bl2]),
-        #     "bleu_3": mean([tensor.item() for tensor in bl3]),
-        #     "bert_score": np.mean(np.mean([tensor for tensor in brt])),
-        #     "meteor_score": np.mean([tensor for tensor in mtr]),
-        #     "rouge_score": np.mean([tensor for tensor in rg])
-        # })
-
-        # eval_metric = accurate.item() / num_elems
-        # # Use accelerator.print to print only on the main process.
-        # accelerator.print(f"epoch {epoch}: {100 * eval_metric:.2f}")
 
 class BidirectionalCrossAttention(nn.Module):
     def __init__(
@@ -523,12 +479,7 @@ class BidirectionalCrossAttention(nn.Module):
         if return_attn:
             return out, context_out, attn, context_attn
         return out, context_out
-
-from torch.utils.data import Dataset
-import sys
-from matplotlib import pyplot as plt
-import json
-from PIL import Image
+    
 class VQAv2_Dataset(Dataset):
     def __init__(self, config, dataset_path, coef_size=0.1,
                  tokenizer_name="", prefix_length=20, normalize_prefix=False, imagespath_split=None):
@@ -619,10 +570,9 @@ class VQAv2_Dataset(Dataset):
         plt.imshow(image)
         print(text)
 
-from accelerate import notebook_launcher
 config = Config()
-train_dataset = VQAv2_Dataset(config, dataset_path="/home/jovyan/vqa_project/baselines/VQAv2_train_translation.jsonl", imagespath_split="/home/jovyan/vqa_project/baselines/trainvqa/train2014/", coef_size=0.1)
-val_dataset = VQAv2_Dataset(config, dataset_path="/home/jovyan/vqa_project/baselines/VQAv2_val_translation.jsonl", imagespath_split="/home/jovyan/vqa_project/baselines/valvqa/val2014/", coef_size=0.1)
+train_dataset = VQAv2_Dataset(config, dataset_path="VQAv2_train_translation.jsonl", imagespath_split="trainvqa/train2014/", coef_size=0.1)
+val_dataset = VQAv2_Dataset(config, dataset_path="VQAv2_val_translation.jsonl", imagespath_split="valvqa/val2014/", coef_size=0.1)
 args = ("bf16", 42, config, train_dataset, val_dataset)
 # notebook_launcher(training_loop, args, num_processes=1)
 training_loop(mixed_precision="fp16", args=config, train_dataset=train_dataset, val_dataset=val_dataset)
