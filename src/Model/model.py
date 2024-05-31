@@ -4,10 +4,14 @@ from torch.amp import autocast
 from torch import einsum
 import open_clip
 from transformers import GPT2Tokenizer, T5ForConditionalGeneration
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Any
 from einops import rearrange
 import math
-from src.utils.utils import *
+from src.utils.utils import exists
+from src.utils.utils import default
+from src.utils.utils import stable_softmax
+from src.utils.utils import expand_mask
+from src.utils.utils import decode_question
 
 class BidirectionalCrossAttention(nn.Module):
     def __init__(
@@ -222,7 +226,7 @@ class MLP(nn.Module):
 
 
 class BILIP(nn.Module):
-    def __init__(self, config: dict, prefix_size: int = 640, dist_loss: function = nn.MSELoss()):
+    def __init__(self, config: dict, prefix_size: int = 640, dist_loss: Any = nn.MSELoss()):
         super(BILIP, self).__init__()
         self.prefix_length = config.prefix_length
         self.clip_model, _, _ = open_clip.create_model_and_transforms(config.encoder, pretrained="laion400m_e32")

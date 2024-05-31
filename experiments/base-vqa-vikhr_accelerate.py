@@ -393,7 +393,7 @@ def training_loop(mixed_precision="fp16", seed:int=42, args=None, train_dataset=
             loss2 = model.dist_loss(model.embedding_layer(answer_tokens), proj)
             
             real = [decode_question(answer_tokens[i], model.tokenizer) for i in range(len(answer_tokens))]
-            pred = model.generate(torch.tensor([val_dataset[idx[j]][4].tolist() for j in range(len(idx))]).to(accelrator.device),
+            pred = model.generate(torch.tensor([val_dataset[idx[j]][4].tolist() for j in range(len(idx))]).to(args.device),
                               [decode_question(query_tokens[j], model.tokenizer) for j in range(len(idx))], val_dataset.max_seq_len)
     
             # predictions = outputs.argmax(dim=-1)

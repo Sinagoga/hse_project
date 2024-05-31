@@ -10,7 +10,7 @@ import pickle
 from torchmetrics.text import BLEUScore
 from statistics import mean
 import wandb
-from src.utils.utils import *
+from src.utils.utils import decode_question
 from src.utils.utils import load_config
 from model import BILIP
 from VQA_dataset import VQAv2_Dataset
@@ -23,7 +23,7 @@ wandb.init(project="", sync_tensorboard=True, name="")
 
 def train(model: nn.Module,
           optimizer: Any,
-          scheduler: function,
+          scheduler: Any,
           loss_func: nn.Module,
           loader: DataLoader,
           epoch: int,
