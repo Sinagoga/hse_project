@@ -5,12 +5,15 @@ from torch.nn import functional as nnf
 from transformers.optimization import Adafactor
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-
+from typing import Any, Dict
 import pickle
 from torchmetrics.text import BLEUScore
 from statistics import mean
 import wandb
-from utils.utils import *
+from src.utils.utils import *
+from src.utils.utils import load_config
+from model import BILIP
+from VQA_dataset import VQAv2_Dataset
 
 bleu_scorers = [BLEUScore(n_gram=i) for i in [1, 2, 3]]
 
@@ -18,7 +21,13 @@ wandb.login(key="")
 wandb.init(project="", sync_tensorboard=True, name="")
 
 
-def train(model, optimizer, scheduler, loss_func, loader, epoch, args):
+def train(model: nn.Module,
+          optimizer: Any,
+          scheduler: function,
+          loss_func: nn.Module,
+          loader: DataLoader,
+          epoch: int,
+          args: Dict[str, Any]):
     model.train()
     pbar = tqdm(loader, total=len(loader))
     step = 0
@@ -53,7 +62,12 @@ def train(model, optimizer, scheduler, loss_func, loader, epoch, args):
         pickle.dump(model, f)
 
 @torch.no_grad()
-def evaluate(model, optimizer, scheduler, loss_func, loader, args):
+def evaluate(model: nn.Module,
+             optimizer: Any,
+             scheduler: Any,
+             loss_func: nn.Module,
+             loader: DataLoader,
+             args: Dict[str, Any]):
     model.eval()
     pbar = tqdm(loader, total=len(loader))
     step = 0
@@ -61,9 +75,6 @@ def evaluate(model, optimizer, scheduler, loss_func, loader, args):
     bl1 = []
     bl2 = []
     bl3 = []
-    brt = []
-    mtr = []
-    rg = []
     val_losses = []
     val_dist = []
     for (query_tokens, query_mask, answer_tokens, answer_mask, prefix, idx) in pbar:
@@ -120,7 +131,6 @@ def fit_model(args, model, train_loader, val_loader):
         "epochs": args.num_epochs,
         "batch_size": args.batch_size
     }
-    device = args.device
 
     model = model.to(args.device)
 
@@ -151,13 +161,9 @@ def fit_model(args, model, train_loader, val_loader):
         print(f"---------- Evaluate epoch {epoch} ---------")
         evaluate(model, optimizer, scheduler, loss_func, val_loader, args)
 
-from config import Config
-from model import BILIP
-from VQA_dataset import VQAv2_Dataset
-
-config = Config()
-train_dataset = VQAv2_Dataset(config, dataset_path="/home/jovyan/vqa_project/baselines/VQAv2_train_translation.jsonl", imagespath_split="/home/jovyan/vqa_project/baselines/trainvqa/train2014/", coef_size=0.5)
-val_dataset = VQAv2_Dataset(config, dataset_path="/home/jovyan/vqa_project/baselines/VQAv2_val_translation.jsonl", imagespath_split="/home/jovyan/vqa_project/baselines/valvqa/val2014/", coef_size=0.05)
+config = load_config("/Users/ildarkhamaganov/hse_project_vqa/hse_project/config.yaml")
+train_dataset = VQAv2_Dataset(config, dataset_path="VQAv2_train_translation.jsonl", imagespath_split="trainvqa/train2014/", coef_size=0.5)
+val_dataset = VQAv2_Dataset(config, dataset_path="VQAv2_val_translation.jsonl", imagespath_split="valvqa/val2014/", coef_size=0.05)
 
 model = BILIP(config, config.prefix_length)
 train_loader = DataLoader(train_dataset, batch_size=config.batch_size, num_workers=20, shuffle=True, drop_last=False)

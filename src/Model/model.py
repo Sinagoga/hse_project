@@ -4,22 +4,23 @@ from torch.amp import autocast
 from torch import einsum
 import open_clip
 from transformers import GPT2Tokenizer, T5ForConditionalGeneration
-from typing import Optional
+from typing import List, Optional, Union
 from einops import rearrange
 import math
-from utils.utils import *
+from src.utils.utils import *
 
 class BidirectionalCrossAttention(nn.Module):
     def __init__(
             self,
             *,
-            dim,
-            heads=8,
-            dim_head=64,
-            context_dim=None,
-            dropout=0.,
-            talking_heads=False,
-            prenorm=False,
+            dim: int,
+            heads: int = 8,
+            dim_head: int = 64,
+            context_dim: Optional[int] = None,
+            dropout: float = 0.,
+            talking_heads: bool = False,
+            prenorm: bool = False,
+
     ):
         super().__init__()
         context_dim = default(context_dim, dim)
@@ -41,12 +42,13 @@ class BidirectionalCrossAttention(nn.Module):
 
     def forward(
             self,
-            x,
-            context,
-            mask=None,
-            context_mask=None,
-            return_attn=False,
-            rel_pos_bias=None
+            x: torch.Tensor,
+            context: torch.Tensor,
+            mask: Optional[torch.Tensor] = None,
+            context_mask: Optional[torch.Tensor] = None,
+            return_attn: bool = False,
+            rel_pos_bias: Optional[torch.Tensor] = None
+    
     ):
 
         b, i, j, h, device = x.shape[0], x.shape[-2], context.shape[-2], self.heads, x.device
@@ -82,7 +84,7 @@ class BidirectionalCrossAttention(nn.Module):
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, input_dim, dim_embedds, num_heads):
+    def __init__(self, input_dim: int, dim_embedds: int, num_heads: int) -> None:
         super(MultiHeadAttention, self).__init__()
         assert dim_embedds % num_heads == 0
 
@@ -100,7 +102,12 @@ class MultiHeadAttention(nn.Module):
         nn.init.xavier_uniform_(self.W_o.weight)
         self.W_o.bias.data.fill_(0)
 
-    def scaled_dot_product_attention(self, Q, K, V, mask=None):
+    def scaled_dot_product_attention(self,
+            Q: torch.Tensor,
+            K: torch.Tensor,
+            V: torch.Tensor,
+            mask: Optional[torch.Tensor] = None
+):
         attn_scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.d_k)
         if mask is not None:
             _MASKING_VALUE = -1e+30 if attn_scores.dtype == torch.float32 else -1e+4
@@ -109,10 +116,14 @@ class MultiHeadAttention(nn.Module):
         output = torch.matmul(attention, V)
         return output, attention
 
-    def combine_heads(self, x, batch_size, seq_length):
+    def combine_heads(self, x: torch.Tensor, batch_size: int, seq_length: int) -> torch.Tensor:
         return x.permute(0, 2, 1, 3).reshape(batch_size, seq_length, self.dim_embedds)
 
-    def forward(self, x, mask=None, return_attn=False):
+    def forward(self,
+            x: torch.Tensor,
+            mask: Optional[torch.Tensor] = None,
+            return_attn: bool = False
+):
         batch_size, seq_length, _ = x.size()
 
         if exists(mask):
@@ -129,7 +140,7 @@ class MultiHeadAttention(nn.Module):
         return output
 
 class FeedForward(nn.Module):
-    def __init__(self, inp_shape, output_shape, act=nn.ReLU):
+    def __init__(self, inp_shape: int, output_shape: int, act: nn.Module = nn.ReLU):
         super(FeedForward, self).__init__()
         self.seq = nn.Sequential(
             nn.Linear(inp_shape, inp_shape*2),
@@ -140,7 +151,7 @@ class FeedForward(nn.Module):
     def forward(self, x):
         return self.seq(x)
 class TextFeedForward(nn.Module):
-    def __init__(self, text_emb_size, output_size, act=nn.ReLU):
+    def __init__(self, text_emb_size: int, output_size: int, act: nn.Module = nn.ReLU):
         super(TextFeedForward, self).__init__()
         self.seq = nn.Sequential(
             nn.Linear(text_emb_size, text_emb_size*2),
@@ -149,11 +160,11 @@ class TextFeedForward(nn.Module):
             act(),
             nn.Linear(text_emb_size*2, output_size)
         )
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         return self.seq(x)
 
 class QFormerBlock(nn.Module):
-    def __init__(self, img_emb_size, text_emb_size, output_size, bias=True):
+    def __init__(self, img_emb_size: int, text_emb_size: int, output_size: int, bias: bool = True):
         super(QFormerBlock, self).__init__()
         self.attn = MultiHeadAttention(text_emb_size, text_emb_size, 16)
         self.cross_attn = BidirectionalCrossAttention(
@@ -171,7 +182,7 @@ class QFormerBlock(nn.Module):
         return img_emb, text_emb
 
 class Blocks(nn.Module):
-    def __init__(self, img_emb_size, text_emb_size, n_blocks):
+    def __init__(self, img_emb_size: int, text_emb_size: int, n_blocks: int):
         super(Blocks, self).__init__()
         self.model = nn.Sequential(*[QFormerBlock(img_emb_size, text_emb_size, text_emb_size) for _ in range(n_blocks)])
     def forward(self, *x):
@@ -182,14 +193,14 @@ class Blocks(nn.Module):
         return x
 
 class QFormer(nn.Module):
-    def __init__(self, img_emb_size, text_emb_size, output_size, n_blocks=4, bias=True):
+    def __init__(self, img_emb_size: int, text_emb_size: int, output_size: int, n_blocks: int = 4, bias: bool = True):
         super(QFormer, self).__init__()
 
         self.blocks = Blocks(img_emb_size, text_emb_size, n_blocks)
         self.res = nn.Linear(img_emb_size + text_emb_size, output_size)
 
     @autocast("cuda")
-    def forward(self, img_emb, text_emb):
+    def forward(self, img_emb: torch.Tensor, text_emb: torch.Tensor):
         img_emb, text_emb = self.blocks(img_emb, text_emb)
         text_emb = text_emb.mean(axis=1)
         res_emb = torch.cat((img_emb, text_emb), axis=1)
@@ -197,7 +208,7 @@ class QFormer(nn.Module):
         return res_emb
 
 class MLP(nn.Module):
-    def __init__(self, input_shape, output_shape, act=nn.Tanh):
+    def __init__(self, input_shape: int, output_shape: int, act: nn.Module = nn.Tanh):
         super(MLP, self).__init__()
         self.seq = nn.Sequential(
             nn.Linear(input_shape, input_shape * 2),
@@ -211,7 +222,7 @@ class MLP(nn.Module):
 
 
 class BILIP(nn.Module):
-    def __init__(self, config, prefix_size: int = 640, dist_loss=nn.MSELoss()):
+    def __init__(self, config: dict, prefix_size: int = 640, dist_loss: function = nn.MSELoss()):
         super(BILIP, self).__init__()
         self.prefix_length = config.prefix_length
         self.clip_model, _, _ = open_clip.create_model_and_transforms(config.encoder, pretrained="laion400m_e32")
@@ -235,7 +246,7 @@ class BILIP(nn.Module):
 
     @autocast("cuda")
     def forward(self, query_tokens: torch.Tensor, query_mask: Optional[torch.Tensor],
-                answer_tokens: torch.Tensor, answer_mask: Optional[torch.Tensor], image):
+                answer_tokens: torch.Tensor, answer_mask: Optional[torch.Tensor], image: Union[torch.Tensor, List[torch.Tensor]]):
         inputs_embeds = self.llm.encoder.embed_tokens(query_tokens)
         image = self.clip_model.encode_image(image)
         prefix_projections = self.clip_project(image.float(), inputs_embeds).view(-1, self.prefix_length,
@@ -244,7 +255,7 @@ class BILIP(nn.Module):
         out = self.llm(inputs_embeds=prefix_projections, labels=answer_tokens)
         return out, prefix_projections
     
-    def generate(self, image, texts, max_seq_len):
+    def generate(self, image: torch.Tensor, texts: List[str], max_seq_len: int):
         input_tokens = self.tokenizer(
                 texts,
                 padding="max_length",

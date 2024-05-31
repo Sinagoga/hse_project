@@ -1,0 +1,16 @@
+# config.yaml
+
+encoder: "ViT-B-16-plus-240"
+llm: "ai-forever/FRED-T5-large"
+batch_size: 172
+num_epochs: 40
+frozen_gpt: 8
+frozen_clip: 24
+learning_rate: 2e-4
+save_path: ""
+prefix_length: 60
+only_prefix: False
+prefix: "prefix_small"
+device: "cuda:0"
+save_every: 1
+warmup_steps: 2000

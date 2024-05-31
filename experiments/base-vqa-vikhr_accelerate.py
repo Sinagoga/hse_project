@@ -1,3 +1,36 @@
+import torch
+import torch.nn as nn
+from torch.nn import functional as nnf
+from torch.amp import autocast
+from torch import einsum
+
+import open_clip
+
+from transformers import GPT2LMHeadModel, AutoTokenizer
+
+from typing import Optional
+
+from transformers.optimization import Adafactor
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+
+from torchmetrics.text import BLEUScore
+from evaluate import load
+from statistics import mean
+# from vqadataset import VQAv2_Dataset
+from einops import rearrange
+import math
+import wandb
+import pickle
+from accelerate.utils import set_seed
+
+from accelerate import Accelerator
+from torch.utils.data import Dataset
+import sys
+from matplotlib import pyplot as plt
+import json
+from PIL import Image
+
 class Config:
     encoder: str = "ViT-B-16"
     # decoder: str = "ai-forever/FRED-T5-large"
@@ -7,44 +40,13 @@ class Config:
     frozen_gpt: int = 20
     frozen_clip: int = 60
     learning_rate: float  = 2e-4
-    save_path: str = "/home/jovyan/vqa_project/baselines/saved_models_FRED-T5-large/"
+    save_path: str = "/saved_models_FRED-T5-large/"
     prefix_length: int = 50
     only_prefix: int = False
     prefix: str = "prefix_small"
     device: str = "cuda:0"
     save_every: int = 1
     warmup_steps: int = 2000
-import torch
-import torch.nn as nn
-from torch.nn import functional as nnf
-from torch.amp import autocast
-from torch import einsum
-import torch.nn.functional as F
-
-import open_clip
-
-from transformers import GPT2LMHeadModel, AutoTokenizer
-from transformers import T5ForConditionalGeneration
-
-from typing import Optional
-
-from transformers.optimization import Adafactor
-import numpy as np
-from torch.utils.data import DataLoader
-from tqdm import tqdm
-
-from torchmetrics.text import BLEUScore
-from evaluate import load
-from statistics import mean
-import pandas as pd
-# from vqadataset import VQAv2_Dataset
-from einops import rearrange
-import math
-import wandb
-import pickle
-from accelerate.utils import set_seed
-
-from accelerate import Accelerator
 
 def exists(val):
     return val is not None
@@ -148,7 +150,6 @@ class QFormerBlock(nn.Module):
     def __init__(self, img_emb_size, text_emb_size, output_size, bias=True):
         super(QFormerBlock, self).__init__()
         self.attn = MultiHeadAttention(text_emb_size, text_emb_size, 16)
-        # self.cross_attn = MultiHeadAttention(img_emb_size, img_emb_size, num_heads=16)
         self.cross_attn = BidirectionalCrossAttention(
             dim=img_emb_size,
             heads=16,
@@ -271,14 +272,11 @@ meteor = load('meteor')
 rouge = load('rouge')
 bleu_scorers = [BLEUScore(n_gram=i) for i in [1, 2, 3]] + [bertscore, meteor, rouge]
 
-wandb.login(key="278590c2621521efe866317352d7f3e13fef885f")
+wandb.login(key="")
 wandb.init(project="", sync_tensorboard=True, name="")
 
 def decode_question(question_token, tokenizer):
     decoded_string = tokenizer.decode(question_token)
-    # if "<pad>" in decoded_string:
-    #     truncate_pads = decoded_string.index("<pad>")
-    #     decoded_string = decoded_string[:truncate_pads]
     decoded_string = decode_question.replace("<pad>", "")
     return decoded_string
 
@@ -300,14 +298,6 @@ def training_loop(mixed_precision="fp16", seed:int=42, args=None, train_dataset=
     
     # instantiate the model (we build the model here so that the seed also controls new weight initaliziations)
     model = ClipCaptionModel(args, args.prefix_length)
-
-    # We normalize the batches of images to be a bit faster
-    # mean = torch.tensor(model.default_cfg["mean"])[None, :, None, None]
-    # std = torch.tensor(model.default_cfg["std"])[None, :, None, None]
-    
-    # To make this constant available on the active device, we set it to the accelerator device
-    # mean = mean.to(accelerator.device)
-    # std = std.to(accelerator.device)
     
     # Intantiate the optimizer
     optimizer = Adafactor(params=model.parameters(), lr=config.learning_rate,
@@ -319,8 +309,6 @@ def training_loop(mixed_precision="fp16", seed:int=42, args=None, train_dataset=
     )
     
     # Prepare everything
-    # There is no specific order to remember, we just need to unpack the objects in the same order we gave them to the
-    # prepare method.
     model, optimizer, train_dataloader, eval_dataloader, lr_scheduler = accelerator.prepare(
         model, optimizer, train_dataloader, eval_dataloader, lr_scheduler
     )
@@ -381,9 +369,6 @@ def training_loop(mixed_precision="fp16", seed:int=42, args=None, train_dataset=
         print(f"---------- Evaluate epoch {epoch} ---------")
         model.eval()
         pbar = tqdm(eval_dataloader, total=len(eval_dataloader))
-        accurate = 0
-        num_elems = 0
-        
         bl1 = []
         bl2 = []
         bl3 = []
@@ -525,11 +510,7 @@ class BidirectionalCrossAttention(nn.Module):
             return out, context_out, attn, context_attn
         return out, context_out
 
-from torch.utils.data import Dataset
-import sys
-from matplotlib import pyplot as plt
-import json
-from PIL import Image
+
 class VQAv2_Dataset(Dataset):
     def __init__(self, config, dataset_path, coef_size=0.1,
                  tokenizer_name="", prefix_length=20, normalize_prefix=False, imagespath_split=None):
@@ -597,12 +578,9 @@ class VQAv2_Dataset(Dataset):
 
     def get_image(self, item):
         name = str(self.img_paths[item])
-        # name = f"{self.img_path}/{name}"
         image_resized = Image.open(name)
         image_resized = image_resized.resize((256, 256))
         return image_resized
-        # image_resized = cv2.resize(self.image_idx[item], (256,256))
-        # return Image.fromarray(cv2.cvtColor(image_resized, cv2.COLOR_BGR2RGB))
 
     def __len__(self) -> int:
         return len(self.img_paths)
@@ -620,10 +598,9 @@ class VQAv2_Dataset(Dataset):
         plt.imshow(image)
         print(text)
 
-from accelerate import notebook_launcher
 config = Config()
-train_dataset = VQAv2_Dataset(config, dataset_path="/home/jovyan/vqa_project/baselines/VQAv2_train_translation.jsonl", imagespath_split="/home/jovyan/vqa_project/baselines/trainvqa/train2014/", coef_size=0.1)
-val_dataset = VQAv2_Dataset(config, dataset_path="/home/jovyan/vqa_project/baselines/VQAv2_val_translation.jsonl", imagespath_split="/home/jovyan/vqa_project/baselines/valvqa/val2014/", coef_size=0.1)
+train_dataset = VQAv2_Dataset(config, dataset_path="/VQAv2_train_translation.jsonl", imagespath_split="trainvqa/train2014/", coef_size=0.1)
+val_dataset = VQAv2_Dataset(config, dataset_path="/VQAv2_val_translation.jsonl", imagespath_split="valvqa/val2014/", coef_size=0.1)
 args = ("bf16", 42, config, train_dataset, val_dataset)
 # notebook_launcher(training_loop, args, num_processes=1)
 training_loop(mixed_precision="fp16", args=config, train_dataset=train_dataset, val_dataset=val_dataset)

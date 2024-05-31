@@ -1,6 +1,7 @@
 import torch
 import math
 import torch.nn.functional as F
+import yaml
 
 def decode_question(question_token, tokenizer):
     decoded_string = tokenizer.decode(question_token)
@@ -38,3 +39,15 @@ def expand_mask(mask):
     while mask.ndim < 4:
         mask = mask.unsqueeze(0)
     return mask
+
+class Config:
+    def __init__(self, data):
+        for key, value in data.items():
+            if isinstance(value, dict):
+                value = Config(value)
+            self.__dict__[key] = value
+
+def load_config(yaml_path):
+    with open(yaml_path, 'r') as file:
+        config_data = yaml.safe_load(file)
+    return Config(config_data)
