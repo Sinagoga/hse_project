@@ -1,4 +1,10 @@
-https://www.alzforum.org/research-models/als - сайт для ознакомления с моделями  
-https://en.wikipedia.org/wiki/Mean_reciprocal_rank - подробнее про метрику  
-
-https://boosters.pro/championship/hh_recsys/data - ссылка на хак
+# Visual Question Answering
+Модель обученная на VQAv2 датасете. =
+## Описание
+VQA — это задача ответа на открытые вопросы на основе изображения.Входные данные для модели представляют собой комбинацию изображения и вопроса, а выходные данные — ответ, выраженный на естественном языке
+## Структура проекта
+src - актуальная модель  
+experiments - эксперименты с моделью
+## Демонстрация
+Можно пощупать как работает:  
+[VQA_project_bot](https://t.me/VQA_project_bot)
