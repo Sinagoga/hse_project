@@ -1,8 +1,5 @@
 from transformers import BlipProcessor, BlipForQuestionAnswering
-from datasets import load_dataset
 import torch
-from torch.utils.data import DataLoader
-
 
 model = BlipForQuestionAnswering.from_pretrained("model_path")
 processor = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base")

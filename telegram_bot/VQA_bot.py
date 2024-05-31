@@ -1,14 +1,13 @@
 import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
-from dotenv import load_dotenv
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+# from dotenv import load_dotenv
 
 from PIL import Image
 from io import BytesIO
 
 import bot_utils as model
-from pathlib import Path
 
 import os
 
