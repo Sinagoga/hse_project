@@ -11,8 +11,7 @@ VQA — это задача ответа на открытые вопросы н
 - <code>LLM_tune</code> - работа с моделями LLM  
     - <code>LLM_tune/Experiments</code> - эксперименты с LLM  
     - <code>LLM_tune/FRED-T5-tune</code> - акутальная LLM  
-- <code>accelerate_config</code> - конфиг-файл для accelerate
-
+- <code>telegram_bot</code> - весь код, связанный с телеграм ботом 
 ## Демонстрация
 Можно пощупать как работает:  
 [VQA_project_bot](https://t.me/VQA_project_bot)
