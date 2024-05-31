@@ -7,9 +7,9 @@ VQA — это задача ответа на открытые вопросы н
 - experiments - эксперименты с моделью  
 - Datasets - форматирование данных  
 - Translation - перевод данных  
-- Models - работа с моделями LLM  
+- LLM_tune - работа с моделями LLM  
     - Models/Experiments - эксперименты с LLM  
-    - Models/Model - акутальная LLM  
+    - FRED-T5-tune - акутальная LLM  
 
 ## Демонстрация
 Можно пощупать как работает:  

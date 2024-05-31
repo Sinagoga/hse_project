@@ -1,22 +1,14 @@
 from transformers import GPT2Tokenizer, T5ForConditionalGeneration
-from transformers import get_linear_schedule_with_warmup
 from transformers import Trainer, TrainingArguments
 
 from tqdm.auto import tqdm
 
 import wandb
 
-import pandas as pd
-import numpy as np
-
 import torch
-import torch.nn as nn
-from torch.optim import AdamW
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 
 from datasets import load_dataset
-
-from torch.amp import autocast
 
 
 def load_embs(dataset_path, tokenizer, dataset_size=1):
@@ -106,7 +98,7 @@ training_args = TrainingArguments(
     lr_scheduler_type="linear",
     warmup_steps=1_000,
     report_to="wandb",
-    run_name="train",
+    run_name="run_name",
     gradient_accumulation_steps=10,
     # use_cpu=True
 )
