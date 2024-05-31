@@ -2,7 +2,7 @@ import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
-# from dotenv import load_dotenv
+from dotenv import load_dotenv
 
 from PIL import Image
 from io import BytesIO

@@ -1,7 +1,4 @@
-from datasets import load_dataset
 import torch
-from torch.utils.data import DataLoader
-from Model.model import BILIP
 import pickle
 import open_clip
 
