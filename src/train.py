@@ -1,36 +1,16 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as nnf
-from torch.amp import autocast
-from torch import einsum
-import torch.nn.functional as F
-
-import open_clip
-
-from transformers import GPT2Tokenizer, T5ForConditionalGeneration, T5Config
-from transformers import CLIPProcessor, CLIPModel
-
-from typing import Optional
 
 from transformers.optimization import Adafactor
-import numpy as np
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 import pickle
 from torchmetrics.text import BLEUScore
-from evaluate import load
 from statistics import mean
-import pandas as pd
-from einops import rearrange
-import math
 import wandb
-
-from torch.utils.data import Dataset
-import sys
-from matplotlib import pyplot as plt
-import json
-from PIL import Image
+from utils.utils import *
 
 bleu_scorers = [BLEUScore(n_gram=i) for i in [1, 2, 3]]
 
@@ -150,7 +130,7 @@ def fit_model(args, model, train_loader, val_loader):
 
     loss_func = nn.CrossEntropyLoss()
     optimizer = Adafactor(model.parameters(), lr=args.learning_rate,
-                          relative_step=False  # for adafactor
+                          relative_step=False 
                           )
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer, T_max=15000

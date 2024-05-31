@@ -1,23 +1,13 @@
 import torch
 import torch.nn as nn
-from torch.nn import functional as nnf
 from torch.amp import autocast
 from torch import einsum
-import torch.nn.functional as F
-
 import open_clip
-
-from transformers import GPT2Tokenizer, T5ForConditionalGeneration, T5Config
-from transformers import GPT2LMHeadModel, AutoTokenizer
-
+from transformers import GPT2Tokenizer, T5ForConditionalGeneration
 from typing import Optional
-from transformers.optimization import Adafactor
-
-from evaluate import load
-from statistics import mean
 from einops import rearrange
 import math
-
+from utils.utils import *
 
 class BidirectionalCrossAttention(nn.Module):
     def __init__(
@@ -138,7 +128,7 @@ class MultiHeadAttention(nn.Module):
             return output, attention
         return output
 
-class FeedForward(nn.Module): #MLP
+class FeedForward(nn.Module):
     def __init__(self, inp_shape, output_shape, act=nn.ReLU):
         super(FeedForward, self).__init__()
         self.seq = nn.Sequential(
@@ -206,14 +196,23 @@ class QFormer(nn.Module):
         res_emb = self.res(res_emb)
         return res_emb
 
-def decode_question(question_token, tokenizer):
-    decoded_string = tokenizer.decode(question_token)
-    decoded_string = decoded_string.replace("<pad>", "")
-    return decoded_string
+class MLP(nn.Module):
+    def __init__(self, input_shape, output_shape, act=nn.Tanh):
+        super(MLP, self).__init__()
+        self.seq = nn.Sequential(
+            nn.Linear(input_shape, input_shape * 2),
+            act(),
+            nn.Linear(input_shape * 2, output_shape)
+        )
+
+    @autocast("cuda")
+    def forward(self, x):
+        return self.seq(x)
+
 
 class BILIP(nn.Module):
     def __init__(self, config, prefix_size: int = 640, dist_loss=nn.MSELoss()):
-        super(ClipCaptionModel, self).__init__()
+        super(BILIP, self).__init__()
         self.prefix_length = config.prefix_length
         self.clip_model, _, _ = open_clip.create_model_and_transforms(config.encoder, pretrained="laion400m_e32")
         self.tokenizer = GPT2Tokenizer.from_pretrained(config.llm)
@@ -238,16 +237,26 @@ class BILIP(nn.Module):
     def forward(self, query_tokens: torch.Tensor, query_mask: Optional[torch.Tensor],
                 answer_tokens: torch.Tensor, answer_mask: Optional[torch.Tensor], image):
         inputs_embeds = self.llm.encoder.embed_tokens(query_tokens)
+        image = self.clip_model.encode_image(image)
+        prefix_projections = self.clip_project(image.float(), inputs_embeds).view(-1, self.prefix_length,
+                                                                                   self.llm_embedding_size)
+        prefix_projections = self.mlp(prefix_projections)
+        out = self.llm(inputs_embeds=prefix_projections, labels=answer_tokens)
         return out, prefix_projections
     
     def generate(self, image, texts, max_seq_len):
-        tokens = torch.tensor(self.tokenizer.batch_encode_plus(texts, padding='max_length', max_length=max_seq_len, truncation=True)['input_ids'], dtype=torch.int64).to(self.device)
-        embedding_text = self.gpt.transformer.wte(tokens)
+        input_tokens = self.tokenizer(
+                texts,
+                padding="max_length",
+                truncation=True,
+                max_length=self.max_seq_len,
+                return_tensors="pt").to(self.device)
+        inputs_embeds = self.llm.encoder.embed_tokens(input_tokens)
         image = self.clip_model.encode_image(image)
-        prefix_projections = self.clip_project(image.float(), embedding_text).view(-1, self.prefix_length,
-                                                                                   self.gpt_embedding_size)
+        prefix_projections = self.clip_project(image.float(), inputs_embeds).view(-1, self.prefix_length,
+                                                                                   self.llm_embedding_size)
         prefix_projections = self.mlp(prefix_projections)
-        out = self.gpt.generate(
+        out = self.llm.generate(
             inputs_embeds=prefix_projections,
             max_new_tokens=self.prefix_length,
             no_repeat_ngram_size=3,
